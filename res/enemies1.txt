@@ -1,0 +1,7 @@
+wolf 100 200
+wolf 600 600
+wolf 300 200
+wolf 450 300
+wolf 800 800
+wolf 950 950
+wolf 1050 1050

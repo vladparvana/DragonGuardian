@@ -1,0 +1,13 @@
+chicken 600 210
+chicken 108 894
+potion 612 951
+poisonPotion 918 930
+potion 480 415
+chicken 654 1344
+potion 138 1755
+poisonPotion 720 1632
+chicken 1368 1092
+potion 1566 1662
+chicken 1779 555
+chicken 1038 1872
+poisonPotion 1890 1938

@@ -1,0 +1,3 @@
+chicken 400 400
+poisonPotion 600 600
+potion 900 900

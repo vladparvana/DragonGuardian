@@ -1,0 +1,531 @@
+package PaooGame.Items;
+
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.util.Random;
+
+import PaooGame.Camera.Camera;
+import PaooGame.Graphics.ImageLoader;
+import PaooGame.Graphics.SpriteSheet;
+import PaooGame.RefLinks;
+
+import static PaooGame.Utilz.Constants.PlayerConstants.*;
+import static PaooGame.Utilz.HelpMethods.Intersects;
+
+/*! \class public class Hero extends Character
+    \brief Implementeaza notiunea de erou/player (caracterul controlat de jucator).
+
+    Elementele suplimentare pe care le aduce fata de clasa de baza sunt:
+        imaginea (acest atribut poate fi ridicat si in clasa de baza)
+        deplasarea
+        atacul (nu este implementat momentan)
+        dreptunghiul de coliziune
+ */
+public class Wolf extends Enemy
+{
+    private BufferedImage image;    /*!< Referinta catre imaginea curenta a eroului.*/
+    private BufferedImage animations [][] ;
+    private BufferedImage attackAnimations [][];
+    private BufferedImage currentAnimations [][];
+
+    private int aniTick, aniIndex, aniSpeed = 8;
+    private int playerAction = UP_IDLE;
+
+    private boolean moving = false;
+    private Random random;
+    private int range = 4;
+    private int direction;
+    private long directionChangeTime; // Timestamp of the last direction change
+    private long directionChangeDelayTime; // Timestamp of the last direction change delay
+    private boolean shouldChangeDirection = true;
+    private long timeMoved ;
+    private int hlp_aniTick;
+    private boolean attackMode=false;
+    private long attackCooldown;
+
+
+
+
+    /*! \fn public Hero(RefLinks refLink, float x, float y)
+        \brief Constructorul de initializare al clasei Hero.
+
+        \param refLink Referinta catre obiectul shortcut (obiect ce retine o serie de referinte din program).
+        \param x Pozitia initiala pe axa X a eroului.
+        \param y Pozitia initiala pe axa Y a eroului.
+     */
+    public Wolf(RefLinks refLink, float x, float y)
+    {
+        ///Apel al constructorului clasei de baza
+        super(refLink, x,y, Character.DEFAULT_CREATURE_WIDTH, Character.DEFAULT_CREATURE_HEIGHT);
+
+        //refLink.GetGame().getCamera().Update((double)x,(double)y,refLink.GetWidth(),refLink.GetHeight(),refLink.GetMap().GetMapWidth(),refLink.GetMap().GetMapHeight());
+        ///Seteaza imaginea de start a eroului
+
+        ///Stabilieste pozitia relativa si dimensiunea dreptunghiului de coliziune, starea implicita(normala)
+        SetHeight(32);
+        SetWidth(32);
+        normalBounds.setLocation(0,0);
+        normalBounds.setSize(32,32);
+        //normalBounds.x = 10;
+        //normalBounds.y = 10;
+        //normalBounds.width = 28;
+        //normalBounds.height = 30;
+
+
+        ///Stabilieste pozitia relativa si dimensiunea dreptunghiului de coliziune, starea de atac
+        attackBounds.x = 20;
+        attackBounds.y = 30;
+        attackBounds.width = 38;
+        attackBounds.height = 60;
+        InitAnimations();
+        image = animations[0][0];
+        directionChangeTime = System.currentTimeMillis();
+        directionChangeDelayTime = System.currentTimeMillis();
+        cooldown=System.currentTimeMillis();
+        timeMoved=System.currentTimeMillis();
+        attackCooldown=System.currentTimeMillis();
+        random = new Random();
+    }
+
+    private void InitAnimations() {
+        animations=new BufferedImage[16][4];
+        SpriteSheet spriteSheet= new SpriteSheet(ImageLoader.LoadImage("/Wolf.png"));
+        for(int x=0;x<14;x++)
+            for(int y=0;y<4;y++)
+            {
+                animations[x][y]=spriteSheet.crop(y,x,16,16);
+            }
+        attackAnimations= new BufferedImage[4][4];
+        spriteSheet= new SpriteSheet(ImageLoader.LoadImage("/Wolf_Attack.png"));
+        for(int x=0;x<4;x++)
+            for(int y=0;y<4;y++)
+            {
+                attackAnimations[x][y]=spriteSheet.crop(y,x,24,24);
+            }
+        currentAnimations=animations;
+    }
+
+    private void updateAnimationTick() {
+
+        //System.out.println(playerAction);
+        aniTick ++;
+        if(aniTick>=aniSpeed) {
+            aniTick =0;
+            aniIndex++;
+            if(aniIndex>=4)
+                aniIndex=0;
+        }
+    }
+    /*! \fn public void Update()
+        \brief Actualizeaza pozitia si imaginea eroului.
+     */
+    @Override
+    public void Update()
+    {
+        //x =x+(int)refLink.GetGame().getCamera().GetX();
+        //y=y+(int)refLink.GetGame().getCamera().GetY();
+        ///Verifica daca a fost apasata o tasta
+        long currentTime = System.currentTimeMillis();
+        long timeSinceDirectionChange = currentTime - directionChangeTime;
+        long timeSinceLastMove = currentTime-timeMoved;
+        //long timeSinceDirectionChangeDelay = currentTime - directionChangeDelayTime;
+
+        if(((isAttacked==true && (currentTime-cooldown)>=3000) || isAttacked==false) && attackMode==false) {
+            attackCooldown=0;
+            IsNotAttacked();
+            if (timeSinceDirectionChange >= 2000) { // If 2 seconds have passed since last direction change
+                shouldChangeDirection = true;
+                directionChangeTime = currentTime;
+            }
+
+//        if (timeSinceDirectionChangeDelay >= 1000) { // If 1 second has passed since last direction change delay
+//            shouldChangeDirection = true;
+//            directionChangeDelayTime = currentTime;
+//        }
+
+            if (shouldChangeDirection) {
+                direction = GetInput();
+                shouldChangeDirection = false;
+            }
+            ///Actualizeaza pozitia
+            if (timeSinceLastMove < 500) {
+                Move();
+            } else if (timeSinceLastMove > 2000)
+                timeMoved = currentTime;
+
+
+            ///Actualizeaza imaginea
+            //playerAction=IDLE;
+            if (direction == 2) {
+                playerAction = 1;
+            } else if (direction == 0) {
+                playerAction = 3;
+            } else if (direction == 1) {
+                playerAction = 2;
+            } else if (direction == 3) {
+                playerAction = 0;
+            }
+        }
+        //else playerAction=PlayerIdle(playerAction);
+
+        //moving=refLink.GetKeyManager().moving;
+        //if(moving == false)
+            //layerAction=PlayerIdle(playerAction);
+    }
+
+    /*! \fn private void GetInput()
+        \brief Verifica daca a fost apasata o tasta din cele stabilite pentru controlul eroului.
+     */
+    private int GetInput()
+    {
+        ///Implicit eroul nu trebuie sa se deplaseze daca nu este apasata o tasta
+        xMove = 0;
+        yMove = 0;
+        int randomNumber = random.nextInt(range)+0;
+        //randomNumber=0;
+ //       yMove = -speed;
+//            return 0;
+        //Verificare apasare tasta "sus"
+        if(randomNumber == 0)
+        {
+            yMove = -speed;
+            return 0;
+        }
+        ///Verificare apasare tasta "jos"
+        if(randomNumber == 1)
+        {
+            yMove = speed;
+            return 1;
+        }
+        ///Verificare apasare tasta "left"
+        if(randomNumber == 2)
+        {
+            xMove = -speed;
+            return 2;
+        }
+        ///Verificare apasare tasta "dreapta"
+        if(randomNumber == 3)
+        {
+            xMove = speed;
+            return 3;
+        }
+        return 0;
+
+    }
+
+    /*! \fn public void Draw(Graphics g)
+        \brief Randeaza/deseneaza eroul in noua pozitie.
+
+        \brief g Contextul grafi in care trebuie efectuata desenarea eroului.
+     */
+    @Override
+    public void Draw(Graphics g)
+    {
+        updateAnimationTick();
+        if(currentAnimations == attackAnimations)
+            g.drawImage(attackAnimations[playerAction][aniIndex], (int)x-(int)refLink.GetCamera().GetX()-8, (int)y-(int)refLink.GetCamera().GetY()-4, (int)(width*1.50), (int)(height*1.50), null);
+        else
+            g.drawImage(currentAnimations[playerAction][aniIndex], (int)x-(int)refLink.GetCamera().GetX(), (int)y-(int)refLink.GetCamera().GetY(), width, height, null);
+
+        ///doar pentru debug daca se doreste vizualizarea dreptunghiului de coliziune altfel se vor comenta urmatoarele doua linii
+        g.setColor(Color.blue);
+        g.drawRect((int)(x + bounds.x-(int)refLink.GetCamera().GetX()), (int)(y + bounds.y-(int)refLink.GetCamera().GetY()), bounds.width, bounds.height);
+    }
+
+    @Override
+    public void SetAttackAnimation(){
+        currentAnimations=attackAnimations;
+        attackCooldown++;
+        attackMode=true;
+    }
+
+    @Override
+    public void SetNormalAnimation(){
+        attackMode=false;
+        currentAnimations=animations;
+}
+
+    @Override
+    public boolean canAttack() {
+        if(attackCooldown>=100) {
+            attackCooldown=0;
+            return true;
+        }
+        else
+            return false;
+    }
+
+
+}
+package PaooGame.Items;
+
+import java.awt.*;
+import java.awt.image.BufferedImage;
+
+import PaooGame.Camera.Camera;
+import PaooGame.Graphics.ImageLoader;
+import PaooGame.Graphics.SpriteSheet;
+import PaooGame.RefLinks;
+
+import static PaooGame.Utilz.Constants.PlayerConstants.*;
+import static PaooGame.Utilz.HelpMethods.Intersects;
+
+/*! \class public class Hero extends Character
+    \brief Implementeaza notiunea de erou/player (caracterul controlat de jucator).
+
+    Elementele suplimentare pe care le aduce fata de clasa de baza sunt:
+        imaginea (acest atribut poate fi ridicat si in clasa de baza)
+        deplasarea
+        atacul (nu este implementat momentan)
+        dreptunghiul de coliziune
+ */
+public class Hero extends Character
+{
+    private BufferedImage image;    /*!< Referinta catre imaginea curenta a eroului.*/
+    private BufferedImage animations [][] ;
+
+    private int aniTick, aniIndex, aniSpeed = 8;
+    private int playerAction = UP_IDLE;
+
+    private boolean moving = false;
+
+    private long lastAttackTime;  // Variable to store the time of the last attack
+    private static final long ATTACK_DELAY = 1000; // Delay in milliseconds (1 second)
+    private int attackAniIndex;
+    private boolean attackAnimationComplete = true;
+
+
+
+    /*! \fn public Hero(RefLinks refLink, float x, float y)
+        \brief Constructorul de initializare al clasei Hero.
+
+        \param refLink Referinta catre obiectul shortcut (obiect ce retine o serie de referinte din program).
+        \param x Pozitia initiala pe axa X a eroului.
+        \param y Pozitia initiala pe axa Y a eroului.
+     */
+    public Hero(RefLinks refLink, float x, float y)
+    {
+            ///Apel al constructorului clasei de baza
+        super(refLink, x,y, Character.DEFAULT_CREATURE_WIDTH, Character.DEFAULT_CREATURE_HEIGHT);
+
+        //refLink.GetGame().getCamera().Update((double)x,(double)y,refLink.GetWidth(),refLink.GetHeight(),refLink.GetMap().GetMapWidth(),refLink.GetMap().GetMapHeight());
+            ///Seteaza imaginea de start a eroului
+
+            ///Stabilieste pozitia relativa si dimensiunea dreptunghiului de coliziune, starea implicita(normala)
+        //SetHeight(32);
+        //SetWidth(32);
+        normalBounds.setLocation(10,10);
+        normalBounds.setSize(28,30);
+        //normalBounds.x = 10;
+        //normalBounds.y = 10;
+        //normalBounds.width = 28;
+        //normalBounds.height = 30;
+
+
+            ///Stabilieste pozitia relativa si dimensiunea dreptunghiului de coliziune, starea de atac
+        attackBounds.x = 20;
+        attackBounds.y = 30;
+        attackBounds.width = 38;
+        attackBounds.height = 60;
+        attackBounds.setLocation(0,0);
+        attackBounds.setSize(48,48);
+        InitAnimations();
+        image = animations[0][0];
+    }
+
+    private void InitAnimations() {
+        animations=new BufferedImage[16][4];
+        SpriteSheet spriteSheet= new SpriteSheet(ImageLoader.LoadImage("/player_final.png"));
+        for(int x=0;x<16;x++)
+            for(int y=0;y<4;y++)
+            {
+                animations[x][y]=spriteSheet.crop(y,x,32,32);
+            }
+    }
+
+    private void updateAnimationTick() {
+
+        //System.out.println(playerAction);
+
+        aniTick ++;
+        if(aniTick>=aniSpeed) {
+            aniTick =0;
+            aniIndex++;
+            if(aniIndex>=GetSpriteAmount(playerAction,moving))
+                aniIndex=0;
+            if(attackAnimationComplete==false)
+                attackAniIndex++;
+            if(attackAniIndex==4) {
+                attackAniIndex=0;
+                playerAction=PlayerNoAttack(playerAction);
+                attackAnimationComplete = true;
+            }
+        }
+
+    }
+    /*! \fn public void Update()
+        \brief Actualizeaza pozitia si imaginea eroului.
+     */
+    @Override
+    public void Update()
+    {
+        //SetAttackMode();
+            ///Verifica daca a fost apasata o tasta
+        GetInput();
+
+            ///Actualizeaza pozitia
+
+            ///Actualizeaza imaginea
+        //playerAction=IDLE;
+        if(attackAnimationComplete==true) {
+            if (refLink.GetKeyManager().left == true) {
+                playerAction = LEFT;
+            } else if (refLink.GetKeyManager().up == true) {
+                playerAction = DOWN;
+            } else if (refLink.GetKeyManager().down == true) {
+                playerAction = UP;
+            } else if (refLink.GetKeyManager().right == true) {
+                playerAction = RIGHT;
+            } //else playerAction=PlayerIdle(playerAction);
+
+            moving = refLink.GetKeyManager().moving;
+        }
+        //if(moving == false)
+            //playerAction=PlayerIdle(playerAction);
+        if(refLink.GetKeyManager().space==true && canAttack()) {
+            attackAnimationComplete = false;
+            lastAttackTime = System.currentTimeMillis();
+            attackAniIndex = 0;
+            SetAttackMode();
+            playerAction=PlayerAttack(playerAction);
+            for(Enemy enemy: refLink.GetMap().GetEnemies())
+                if(Intersects(this,enemy,refLink)){
+                    enemy.IsAttacked();
+                    enemy.SetLife(enemy.GetLife()-2);
+                    System.out.println(enemy.GetLife());
+                }
+            else
+                enemy.IsNotAttacked();
+        }
+        else {
+
+            SetNormalMode();
+        }
+        for(Enemy enemy: refLink.GetMap().GetEnemies())
+            if(Intersects(this,enemy,refLink) && enemy.isAttacked == false){
+                if(enemy.canAttack())
+                    System.out.println("viata -2");
+                enemy.SetAttackAnimation();
+            }
+        else
+            enemy.SetNormalAnimation();
+        Move();
+    }
+    private boolean canAttack() {
+        long currentTime = System.currentTimeMillis();
+        return currentTime - lastAttackTime >= ATTACK_DELAY;
+    }
+
+    private int PlayerIdle(int playerAction) {
+
+        switch (playerAction) {
+            case LEFT:
+                return LEFT_IDLE;
+            case RIGHT:
+                return RIGHT_IDLE;
+            case DOWN:
+                return DOWN_IDLE;
+            case UP:
+                return UP_IDLE;
+            default:
+                return playerAction;
+        }
+    }
+
+    private int PlayerNoAttack(int playerAction) {
+
+        switch (playerAction) {
+            case LEFT_ATTACK:
+                return LEFT;
+            case RIGHT_ATTACK:
+                return RIGHT;
+            case DOWN_ATTACK:
+                return DOWN;
+            case UP_ATTACK:
+                return UP;
+            default:
+                return playerAction;
+        }
+    }
+    private int PlayerAttack(int playerAction) {
+
+        switch (playerAction) {
+            case LEFT:
+                return LEFT_ATTACK;
+            case RIGHT:
+                return RIGHT_ATTACK;
+            case DOWN:
+                return DOWN_ATTACK;
+            case UP:
+                return UP_ATTACK;
+            default:
+                return playerAction;
+        }
+    }
+
+
+    /*! \fn private void GetInput()
+        \brief Verifica daca a fost apasata o tasta din cele stabilite pentru controlul eroului.
+     */
+    private void GetInput()
+    {
+            ///Implicit eroul nu trebuie sa se deplaseze daca nu este apasata o tasta
+        xMove = 0;
+        yMove = 0;
+            ///Verificare apasare tasta "sus"
+        if(refLink.GetKeyManager().up)
+        {
+            yMove = -speed;
+        }
+            ///Verificare apasare tasta "jos"
+        if(refLink.GetKeyManager().down)
+        {
+            yMove = speed;
+        }
+            ///Verificare apasare tasta "left"
+        if(refLink.GetKeyManager().left)
+        {
+            xMove = -speed;
+        }
+            ///Verificare apasare tasta "dreapta"
+        if(refLink.GetKeyManager().right)
+        {
+            xMove = speed;
+        }
+
+    }
+
+    /*! \fn public void Draw(Graphics g)
+        \brief Randeaza/deseneaza eroul in noua pozitie.
+
+        \brief g Contextul grafi in care trebuie efectuata desenarea eroului.
+     */
+    @Override
+    public void Draw(Graphics g)
+    {
+        updateAnimationTick();
+        g.drawImage(animations[playerAction][aniIndex], (int)x,(int)y, width, height, null);
+
+            ///doar pentru debug daca se doreste vizualizarea dreptunghiului de coliziune altfel se vor comenta urmatoarele doua linii
+        g.setColor(Color.blue);
+        g.drawRect((int)(x + bounds.x), (int)(y + bounds.y), bounds.width, bounds.height);
+        g.setColor(Color.BLACK);
+        g.setFont(new Font("Arial", Font.BOLD ,10));
+        if(System.currentTimeMillis()-lastAttackTime<ATTACK_DELAY)
+        g.drawString(Double.toString(Math.max(1000-Math.min(System.currentTimeMillis()-lastAttackTime,1000),0)),(int)x-10,(int)y-10);
+    }
+
+
+
+}
